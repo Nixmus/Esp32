@@ -101,9 +101,13 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       }
       
       function capturePhoto() {
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', "/capture", true);
-        xhr.send();
+        // Crear un enlace temporal para descargar la foto
+        var link = document.createElement('a');
+        link.href = '/capture';
+        link.download = 'ESP32CAM_' + new Date().toISOString().replace(/[:.]/g, '-') + '.jpg';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
       
       function updateConfig() {
