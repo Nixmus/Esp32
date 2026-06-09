@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+# ============================================================
+#  Recibe el audio PCM del ESP32 por WiFi (TCP) y lo guarda como WAV
+#  Reemplaza la app: el PC se conecta al ESP32 y captura el sonido.
+#  Solo usa la libreria estandar (socket + wave).
+#
+#  El telefono y el PC deben estar en el mismo hotspot que el ESP32.
+# ============================================================
+
+import socket
+import wave
+
+# ---------- Configuracion ----------
+ESP_IP       = "10.109.146.120"   # IP que imprime el ESP32 en el Monitor Serie
+PORT         = 8000
+SAMPLE_RATE  = 16000           # debe coincidir con el firmware
+SAMPLE_WIDTH = 2               # 16 bits
+CHANNELS     = 1
+SECONDS      = 5               # duracion de la captura
+OUTFILE      = "captura.wav"
+# -----------------------------------
+
+def main():
+    print(f"Conectando a {ESP_IP}:{PORT} ...")
+    s = socket.create_connection((ESP_IP, PORT), timeout=10)
+
+    target = SAMPLE_RATE * SAMPLE_WIDTH * SECONDS
+    print(f"Grabando {SECONDS} s...")
+
+    data = bytearray()
+    while len(data) < target:
+        chunk = s.recv(target - len(data))
+        if not chunk:
+            print("El ESP32 cerro la conexion.")
+            break
+        data.extend(chunk)
+
+    s.close()
+
+    if len(data) % 2:
+        data = data[:-1]
+
+    with wave.open(OUTFILE, "wb") as wf:
+        wf.setnchannels(CHANNELS)
+        wf.setsampwidth(SAMPLE_WIDTH)
+        wf.setframerate(SAMPLE_RATE)
+        wf.writeframes(data)
+
+    n = len(data) // SAMPLE_WIDTH
+    print(f"Guardado '{OUTFILE}': {n} muestras, {n / SAMPLE_RATE:.2f} s")
+
+
+if __name__ == "__main__":
+    main()
