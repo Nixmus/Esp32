@@ -61,7 +61,7 @@ void oledConectando() {
   display.setTextColor(SSD1306_WHITE);
   display.setTextSize(1);
   display.setCursor(0, 0);
-  display.println("ESP32 Audio INMP441");
+  display.print("SSID: "); display.println(WIFI_SSID);
   display.setTextSize(2);
   display.setCursor(0, 26);
   display.println("Conectando");
@@ -77,7 +77,7 @@ void oledEstado(const char* estado) {
   display.setTextColor(SSD1306_WHITE);
   display.setTextSize(1);
   display.setCursor(0, 0);
-  display.println("ESP32 Audio INMP441");
+  display.print("SSID: "); display.println(WIFI_SSID);
   display.drawFastHLine(0, 10, OLED_W, SSD1306_WHITE);
   display.setCursor(0, 16);
   display.print("IP: ");  display.println(ipStr);
