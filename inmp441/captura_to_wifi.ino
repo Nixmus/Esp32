@@ -1,16 +1,23 @@
 // ============================================================
 //  Captura INMP441 -> servidor TCP por WiFi (PCM 16 bits)
-//  Sin DumbDisplay: el ESP32 transmite audio crudo a quien se conecte.
-//  - Se une a la red (hotspot del telefono): modo estacion
-//  - Driver I2S nuevo (i2s_std), 16 kHz, 32 bits, filtro de mediana
-//  - Al conectarse un cliente, descarta unos buffers (arranque del micro)
+//  + Pulsador para iniciar cada grabacion
+//  + Pantalla OLED SSD1306 (libreria Adafruit) con estados:
+//      Conectando / Conectado / Grabando / Grabado
+//    y la IP de forma permanente una vez conectado.
 //  Placa: ESP32-S3 WROOM N16R8
+//
+//  Librerias necesarias (Library Manager):
+//    - Adafruit GFX Library
+//    - Adafruit SSD1306
 //
 //  >>> PON AQUI EL SSID Y CLAVE DEL HOTSPOT DE TU TELEFONO <<<
 // ============================================================
 
 #include <WiFi.h>
 #include <driver/i2s_std.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
 const char* WIFI_SSID     = "POCOX6Pro5G";
 const char* WIFI_PASSWORD = "nana1708";
@@ -21,10 +28,22 @@ const uint16_t TCP_PORT   = 8000;
 #define I2S_SCK 5    // SCK (BCLK)
 #define I2S_SD  6    // SD  (DOUT del micro)
 
+// --- Pulsador (a GND, usa pull-up interno) ---
+#define BTN_PIN 21
+
+// --- OLED SSD1306 (I2C) ---
+#define OLED_SDA  42
+#define OLED_SCL  41
+#define OLED_W    128
+#define OLED_H    64
+#define OLED_ADDR 0x3C        // si no enciende, prueba 0x3D
+Adafruit_SSD1306 display(OLED_W, OLED_H, &Wire, -1);
+
 #define SOUND_SAMPLE_RATE 8000
 
-const int GAIN_SHIFT = 3;        // MENOS = mas fuerte | MAS = mas bajo
-const int WARMUP_BUFFERS = 0;   // buffers a descartar al conectar un cliente
+const int REC_SECONDS    = 5;   // duracion de cada grabacion (al presionar)
+const int GAIN_SHIFT     = 3;   // MENOS = mas fuerte | MAS = mas bajo
+const int WARMUP_BUFFERS = 0;   // buffers a descartar al iniciar la grabacion
 
 const int BUF_SAMPLES = 6000;
 int32_t rawBuffer[BUF_SAMPLES];
@@ -32,8 +51,45 @@ int32_t s24[BUF_SAMPLES];
 int16_t outBuffer[BUF_SAMPLES];
 
 WiFiServer server(TCP_PORT);
+WiFiClient client;                 // cliente PC persistente
 i2s_chan_handle_t rx_handle;
+String ipStr = "---";
 
+// ---------------- OLED ----------------
+void oledConectando() {
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println("ESP32 Audio INMP441");
+  display.setTextSize(2);
+  display.setCursor(0, 26);
+  display.println("Conectando");
+  display.setTextSize(1);
+  display.setCursor(0, 54);
+  display.println("WiFi...");
+  display.display();
+}
+
+// Pantalla base: SIEMPRE muestra IP + puerto, y un estado grande abajo.
+void oledEstado(const char* estado) {
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println("ESP32 Audio INMP441");
+  display.drawFastHLine(0, 10, OLED_W, SSD1306_WHITE);
+  display.setCursor(0, 16);
+  display.print("IP: ");  display.println(ipStr);
+  display.setCursor(0, 28);
+  display.print("Puerto: "); display.println(TCP_PORT);
+  display.setTextSize(2);
+  display.setCursor(0, 44);
+  display.println(estado);
+  display.display();
+}
+
+// ---------------- Filtro de mediana ----------------
 int32_t med3(int32_t a, int32_t b, int32_t c) {
   int32_t t;
   if (a > b) { t = a; a = b; b = t; }
@@ -42,6 +98,7 @@ int32_t med3(int32_t a, int32_t b, int32_t c) {
   return b;
 }
 
+// ---------------- I2S ----------------
 void i2s_init() {
   i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
   i2s_new_channel(&chan_cfg, NULL, &rx_handle);
@@ -64,40 +121,37 @@ void i2s_init() {
   i2s_channel_enable(rx_handle);
 }
 
-void setup() {
-  Serial.begin(115200);
-  delay(3000);                                   // espera a que el USB enumere
-  Serial.println("=== Arranque OK, el Serial funciona ===");
-
-  Serial.println("Inicializando I2S...");
-  i2s_init();
-  Serial.println("I2S listo.");
-
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("Conectando a WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(400);
-    Serial.print(".");
+// ---------------- Pulsador (con antirrebote) ----------------
+bool botonPresionado() {
+  static bool estadoPrev = HIGH;
+  static unsigned long ultimoCambio = 0;
+  bool lectura = digitalRead(BTN_PIN);
+  if (lectura != estadoPrev && (millis() - ultimoCambio) > 50) {
+    ultimoCambio = millis();
+    estadoPrev = lectura;
+    if (lectura == LOW) return true;   // flanco de bajada = presionado
   }
-  Serial.println();
-  Serial.print("Conectado. IP del ESP32: ");
-  Serial.println(WiFi.localIP());
-  Serial.print("Puerto: ");
-  Serial.println(TCP_PORT);
-
-  server.begin();
+  return false;
 }
 
-void loop() {
-  WiFiClient client = server.available();
-  if (!client) return;
+// ---------------- Grabacion ----------------
+void grabar() {
+  if (!(client && client.connected())) {
+    oledEstado("Sin PC");           // no hay cliente que reciba el audio
+    delay(1200);
+    oledEstado("Conectado");
+    return;
+  }
 
-  Serial.println("Cliente conectado, transmitiendo audio...");
-  int warm = WARMUP_BUFFERS;
+  oledEstado("Grabando");
+  Serial.println("Grabando...");
+
+  long objetivo  = (long)SOUND_SAMPLE_RATE * REC_SECONDS;   // muestras a enviar
+  long enviadas  = 0;
+  int  warm      = WARMUP_BUFFERS;
   int32_t prevSample = 0;
 
-  while (client.connected()) {
+  while (enviadas < objetivo && client.connected()) {
     size_t bytesRead = 0;
     i2s_channel_read(rx_handle, rawBuffer, sizeof(rawBuffer), &bytesRead, portMAX_DELAY);
     int n = bytesRead / 4;
@@ -117,9 +171,68 @@ void loop() {
     }
     if (n > 0) prevSample = s24[n - 1];
 
-    client.write((uint8_t*)outBuffer, n * 2);
+    // no enviar mas de lo necesario para completar el objetivo
+    long restan   = objetivo - enviadas;
+    int  aEnviar  = (n > restan) ? (int)restan : n;
+    client.write((uint8_t*)outBuffer, aEnviar * 2);
+    enviadas += aEnviar;
   }
 
-  client.stop();
-  Serial.println("Cliente desconectado.");
+  oledEstado("Grabado");
+  Serial.println("Grabado.");
+  delay(1500);
+  oledEstado("Conectado");
+}
+
+// ---------------- Setup ----------------
+void setup() {
+  Serial.begin(115200);
+  delay(3000);
+  Serial.println("=== Arranque OK, el Serial funciona ===");
+
+  pinMode(BTN_PIN, INPUT_PULLUP);
+
+  Wire.begin(OLED_SDA, OLED_SCL);
+  if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
+    Serial.println("No se encontro la OLED (revisa direccion/cableado).");
+  }
+  oledConectando();
+
+  Serial.println("Inicializando I2S...");
+  i2s_init();
+  Serial.println("I2S listo.");
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Conectando a WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(400);
+    Serial.print(".");
+  }
+  Serial.println();
+
+  ipStr = WiFi.localIP().toString();
+  Serial.print("Conectado. IP del ESP32: "); Serial.println(ipStr);
+  Serial.print("Puerto: "); Serial.println(TCP_PORT);
+
+  server.begin();
+  oledEstado("Conectado");   // a partir de aqui la IP queda visible en la OLED
+}
+
+// ---------------- Loop ----------------
+void loop() {
+  // aceptar / mantener un cliente PC
+  if (!client || !client.connected()) {
+    WiFiClient nuevo = server.available();
+    if (nuevo) {
+      client = nuevo;
+      Serial.println("Cliente PC conectado.");
+      oledEstado("Conectado");
+    }
+  }
+
+  // el pulsador inicia una grabacion de REC_SECONDS
+  if (botonPresionado()) {
+    grabar();
+  }
 }
