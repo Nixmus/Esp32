@@ -21,12 +21,12 @@ const uint16_t TCP_PORT   = 8000;
 #define I2S_SCK 5    // SCK (BCLK)
 #define I2S_SD  6    // SD  (DOUT del micro)
 
-#define SOUND_SAMPLE_RATE 16000
+#define SOUND_SAMPLE_RATE 8000
 
 const int GAIN_SHIFT = 3;        // MENOS = mas fuerte | MAS = mas bajo
-const int WARMUP_BUFFERS = 12;   // buffers a descartar al conectar un cliente
+const int WARMUP_BUFFERS = 0;   // buffers a descartar al conectar un cliente
 
-const int BUF_SAMPLES = 256;
+const int BUF_SAMPLES = 6000;
 int32_t rawBuffer[BUF_SAMPLES];
 int32_t s24[BUF_SAMPLES];
 int16_t outBuffer[BUF_SAMPLES];
