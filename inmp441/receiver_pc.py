@@ -13,7 +13,7 @@ import wave
 # ---------- Configuracion ----------
 ESP_IP       = "10.109.146.120"   # IP que imprime el ESP32 en el Monitor Serie
 PORT         = 8000
-SAMPLE_RATE  = 16000           # debe coincidir con el firmware
+SAMPLE_RATE  = 8000           # debe coincidir con el firmware
 SAMPLE_WIDTH = 2               # 16 bits
 CHANNELS     = 1
 SECONDS      = 5               # duracion de la captura
