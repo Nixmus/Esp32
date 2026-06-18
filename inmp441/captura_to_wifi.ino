@@ -41,7 +41,7 @@ Adafruit_SSD1306 display(OLED_W, OLED_H, &Wire, -1);
 #define SOUND_SAMPLE_RATE 8000
 
 const int REC_SECONDS    = 5;   
-const int GAIN_SHIFT     = 3;  
+const int GAIN_SHIFT     = 0;  
 const int WARMUP_BUFFERS = 0;   
 
 const int BUF_SAMPLES = 600;
