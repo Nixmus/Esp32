@@ -45,7 +45,7 @@ const int REC_SECONDS    = 5;   // duracion de cada grabacion (al presionar)
 const int GAIN_SHIFT     = 3;   // MENOS = mas fuerte | MAS = mas bajo
 const int WARMUP_BUFFERS = 0;   // buffers a descartar al iniciar la grabacion
 
-const int BUF_SAMPLES = 6000;
+const int BUF_SAMPLES = 600;
 int32_t rawBuffer[BUF_SAMPLES];
 int32_t s24[BUF_SAMPLES];
 int16_t outBuffer[BUF_SAMPLES];
