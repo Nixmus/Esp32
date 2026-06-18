@@ -41,9 +41,9 @@ Adafruit_SSD1306 display(OLED_W, OLED_H, &Wire, -1);
 
 #define SOUND_SAMPLE_RATE 8000
 
-const int REC_SECONDS    = 5;   // duracion de cada grabacion (al presionar)
-const int GAIN_SHIFT     = 3;   // MENOS = mas fuerte | MAS = mas bajo
-const int WARMUP_BUFFERS = 0;   // buffers a descartar al iniciar la grabacion
+const int REC_SECONDS    = 5;   
+const int GAIN_SHIFT     = 3;  
+const int WARMUP_BUFFERS = 0;   
 
 const int BUF_SAMPLES = 600;
 int32_t rawBuffer[BUF_SAMPLES];
@@ -51,7 +51,7 @@ int32_t s24[BUF_SAMPLES];
 int16_t outBuffer[BUF_SAMPLES];
 
 WiFiServer server(TCP_PORT);
-WiFiClient client;                 // cliente PC persistente
+WiFiClient client;                 
 i2s_chan_handle_t rx_handle;
 String ipStr = "---";
 
@@ -71,7 +71,6 @@ void oledConectando() {
   display.display();
 }
 
-// Pantalla base: SIEMPRE muestra IP + puerto, y un estado grande abajo.
 void oledEstado(const char* estado) {
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
@@ -115,7 +114,7 @@ void i2s_init() {
       .invert_flags = { .mclk_inv = false, .bclk_inv = false, .ws_inv = false },
     },
   };
-  std_cfg.slot_cfg.slot_mask = I2S_STD_SLOT_LEFT;   // INMP441 con L/R a GND
+  std_cfg.slot_cfg.slot_mask = I2S_STD_SLOT_LEFT;  
 
   i2s_channel_init_std_mode(rx_handle, &std_cfg);
   i2s_channel_enable(rx_handle);
@@ -129,7 +128,7 @@ bool botonPresionado() {
   if (lectura != estadoPrev && (millis() - ultimoCambio) > 50) {
     ultimoCambio = millis();
     estadoPrev = lectura;
-    if (lectura == LOW) return true;   // flanco de bajada = presionado
+    if (lectura == LOW) return true;   
   }
   return false;
 }
@@ -137,7 +136,7 @@ bool botonPresionado() {
 // ---------------- Grabacion ----------------
 void grabar() {
   if (!(client && client.connected())) {
-    oledEstado("Sin PC");           // no hay cliente que reciba el audio
+    oledEstado("Sin PC");           
     delay(1200);
     oledEstado("Conectado");
     return;
@@ -146,7 +145,7 @@ void grabar() {
   oledEstado("Grabando");
   Serial.println("Grabando...");
 
-  long objetivo  = (long)SOUND_SAMPLE_RATE * REC_SECONDS;   // muestras a enviar
+  long objetivo  = (long)SOUND_SAMPLE_RATE * REC_SECONDS;  
   long enviadas  = 0;
   int  warm      = WARMUP_BUFFERS;
   int32_t prevSample = 0;
@@ -156,7 +155,7 @@ void grabar() {
     i2s_channel_read(rx_handle, rawBuffer, sizeof(rawBuffer), &bytesRead, portMAX_DELAY);
     int n = bytesRead / 4;
 
-    if (warm > 0) { warm--; continue; }   // descartar buffers de arranque
+    if (warm > 0) { warm--; continue; }   
 
     for (int i = 0; i < n; i++) s24[i] = rawBuffer[i] >> 8;
 
@@ -171,7 +170,7 @@ void grabar() {
     }
     if (n > 0) prevSample = s24[n - 1];
 
-    // no enviar mas de lo necesario para completar el objetivo
+    
     long restan   = objetivo - enviadas;
     int  aEnviar  = (n > restan) ? (int)restan : n;
     client.write((uint8_t*)outBuffer, aEnviar * 2);
@@ -216,12 +215,12 @@ void setup() {
   Serial.print("Puerto: "); Serial.println(TCP_PORT);
 
   server.begin();
-  oledEstado("Conectado");   // a partir de aqui la IP queda visible en la OLED
+  oledEstado("Conectado");  
 }
 
 // ---------------- Loop ----------------
 void loop() {
-  // aceptar / mantener un cliente PC
+
   if (!client || !client.connected()) {
     WiFiClient nuevo = server.available();
     if (nuevo) {
