@@ -44,7 +44,7 @@ const int REC_SECONDS    = 5;
 const int GAIN_SHIFT     = 0;  
 const int WARMUP_BUFFERS = 0;   
 
-const int BUF_SAMPLES = 600;
+const int BUF_SAMPLES = 4092;
 int32_t rawBuffer[BUF_SAMPLES];
 int32_t s24[BUF_SAMPLES];
 int16_t outBuffer[BUF_SAMPLES];
