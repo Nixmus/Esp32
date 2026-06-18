@@ -10,7 +10,6 @@
 //    - Adafruit GFX Library
 //    - Adafruit SSD1306
 //
-//  >>> PON AQUI EL SSID Y CLAVE DEL HOTSPOT DE TU TELEFONO <<<
 // ============================================================
 
 #include <WiFi.h>
