@@ -1,0 +1,15 @@
+name: captura_inmp441
+description: Cliente movil para la captura de audio del ESP32 INMP441.
+publish_to: 'none'
+version: 1.0.0+2
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  path_provider: ^2.1.0
+  just_audio: ^0.9.40
+dev_dependencies:
+  flutter_lints: ^3.0.0
+flutter:
+  uses-material-design: true
